@@ -8,9 +8,9 @@ if (!isset($_SESSION['loggedin']) || $_SESSION['loggedin'] !== true) {
 }
 
 $user_fullname = htmlspecialchars($_SESSION['fullname']);
-$user_role = htmlspecialchars(ucfirst($_SESSION['role']));
-$user_initial = strtoupper(substr($_SESSION['fullname'], 0, 1));
-$message = '';
+$user_role     = htmlspecialchars(ucfirst($_SESSION['role']));
+$user_initial  = strtoupper(substr($_SESSION['fullname'], 0, 1));
+$message   = '';
 $animal_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 if ($animal_id === 0) die("Invalid Animal ID.");
 
@@ -42,11 +42,13 @@ $medical_records = $pdo->prepare("SELECT * FROM medical_record WHERE animal_id =
 $medical_records->execute([':id' => $animal_id]);
 $medical_records = $medical_records->fetchAll(PDO::FETCH_ASSOC);
 
-$sql_vac = "SELECT av.*, vt.vaccine_name FROM animal_vaccination av JOIN vaccination_types vt ON av.vtype_id=vt.vtype_id WHERE av.animal_id=:id ORDER BY av.date DESC";
-$stmt_vac = $pdo->prepare($sql_vac); $stmt_vac->execute([':id' => $animal_id]);
+$stmt_vac = $pdo->prepare("SELECT av.*, vt.vaccine_name FROM animal_vaccination av JOIN vaccination_types vt ON av.vtype_id=vt.vtype_id WHERE av.animal_id=:id ORDER BY av.date DESC");
+$stmt_vac->execute([':id' => $animal_id]);
 $vaccinations = $stmt_vac->fetchAll(PDO::FETCH_ASSOC);
 
 $vaccine_types = $pdo->query("SELECT vtype_id, vaccine_name FROM vaccination_types ORDER BY vaccine_name ASC")->fetchAll(PDO::FETCH_ASSOC);
+
+$active_page = 'view_animals';
 ?>
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
@@ -56,126 +58,33 @@ $vaccine_types = $pdo->query("SELECT vtype_id, vaccine_name FROM vaccination_typ
 <title>🐾 Health Profile — <?= htmlspecialchars($animal['name']) ?></title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<?php require_once 'includes/layout_css.php'; ?>
 <style>
-[data-theme="dark"]{--bg:#0a0a0a;--bg2:#111;--bg3:#1a1a1a;--bg4:#222;--card:#141414;--border:#242424;--border2:#2e2e2e;--text:#f0f0f0;--text2:#777;--text3:#383838;--shadow:0 16px 56px rgba(0,0,0,.8);--shadow2:0 4px 20px rgba(0,0,0,.5);--glass:rgba(255,255,255,.025);}
-[data-theme="light"]{--bg:#f5f0eb;--bg2:#fff;--bg3:#f0ebe4;--bg4:#e8e2db;--card:#fff;--border:#e5dfd8;--border2:#d5cfc8;--text:#1a1208;--text2:#7a6e65;--text3:#c0b8af;--shadow:0 12px 40px rgba(0,0,0,.08);--shadow2:0 4px 16px rgba(0,0,0,.06);--glass:rgba(0,0,0,.015);}
-:root{--p:#f97316;--pd:#ea6c10;--pl:rgba(249,115,22,.12);--g:#10b981;--gl:rgba(16,185,129,.12);--b:#3b82f6;--bl:rgba(59,130,246,.12);--y:#f59e0b;--yl:rgba(245,158,11,.12);--r:#ef4444;--rl:rgba(239,68,68,.12);}
-*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;overflow:hidden;}
-::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px;}
-a{text-decoration:none;color:inherit;}
-[dir="rtl"] .sbar{border-right:none;border-left:1px solid var(--border);}
-[dir="rtl"] .ni.on::before{left:auto;right:0;}
-[dir="rtl"] .sbar-toggle{right:auto;left:-13px;}
-[dir="rtl"] .tb-right{margin-left:0;margin-right:auto;}
-[dir="rtl"] th{text-align:right;}
-.sbar{width:230px;min-width:230px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;transition:width .35s cubic-bezier(.4,0,.2,1),min-width .35s cubic-bezier(.4,0,.2,1);position:relative;z-index:100;overflow:hidden;}
-.sbar.mini{width:62px;min-width:62px;}
-.sbar-logo{display:flex;align-items:center;gap:12px;padding:20px 16px 16px;border-bottom:1px solid var(--border);}
-.sl-icon{width:38px;height:38px;min-width:38px;background:linear-gradient(135deg,var(--p),#fb923c);border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:1.15rem;box-shadow:0 4px 16px rgba(249,115,22,.4);flex-shrink:0;}
-.sl-txt{overflow:hidden;white-space:nowrap;transition:opacity .25s,width .35s;}
-.sbar.mini .sl-txt{opacity:0;width:0;pointer-events:none;}
-.sl-txt h1{font-family:'Bebas Neue';font-size:1.18rem;letter-spacing:2.5px;}
-.sl-txt span{font-size:.6rem;font-weight:700;color:var(--text2);letter-spacing:1.8px;text-transform:uppercase;}
-.sbar-toggle{position:absolute;right:-13px;top:24px;width:26px;height:26px;background:var(--bg3);border:1px solid var(--border2);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:.7rem;color:var(--text2);z-index:10;}
-.sbar.mini .sbar-toggle i{transform:rotate(180deg);}
-.sbar-user{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;overflow:hidden;}
-.su-av{width:34px;height:34px;min-width:34px;border-radius:10px;background:linear-gradient(135deg,var(--p),var(--y));color:#000;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:.85rem;flex-shrink:0;}
-.su-info{overflow:hidden;white-space:nowrap;transition:opacity .25s,width .35s;}
-.sbar.mini .su-info{opacity:0;width:0;pointer-events:none;}
-.su-name{font-weight:800;font-size:.83rem;}
-.su-role{font-size:.68rem;font-weight:600;color:var(--p);margin-top:1px;}
-.sbar-nav{flex:1;overflow-y:auto;overflow-x:hidden;padding:10px 8px;}
-.s-sec{font-size:.58rem;font-weight:800;color:var(--text3);letter-spacing:2px;text-transform:uppercase;padding:12px 10px 5px;white-space:nowrap;overflow:hidden;transition:opacity .2s;}
-.sbar.mini .s-sec{opacity:0;}
-.ni{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;cursor:pointer;color:var(--text2);font-size:.82rem;font-weight:600;transition:.15s;position:relative;white-space:nowrap;margin-bottom:1px;}
-.ni:hover{background:var(--bg3);color:var(--text);}
-.ni.on{background:var(--pl);color:var(--p);font-weight:700;}
-.ni.on::before{content:'';position:absolute;left:0;top:22%;bottom:22%;width:3px;border-radius:2px;background:var(--p);}
-.ni i{font-size:.92rem;min-width:18px;text-align:center;flex-shrink:0;}
-.nl{transition:opacity .25s;overflow:hidden;flex:1;}
-.sbar.mini .nl{opacity:0;width:0;pointer-events:none;}
-.sbar-bottom{padding:12px 8px;border-top:1px solid var(--border);}
-.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
-.topbar{height:62px;min-height:62px;background:var(--bg2);border-bottom:1px solid var(--border);padding:0 24px;display:flex;align-items:center;gap:14px;}
-.tb-clock{font-size:.78rem;font-weight:800;color:var(--text2);padding:6px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;}
-.topbar-title{font-family:'Bebas Neue';font-size:1.45rem;letter-spacing:1.5px;}
-.tb-right{margin-left:auto;display:flex;align-items:center;gap:8px;}
-.tb-btn{width:37px;height:37px;background:var(--bg3);border:1px solid var(--border);border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text2);transition:.15s;font-size:.88rem;}
-.theme-sw,.lang-sw{display:flex;align-items:center;background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:3px;gap:2px;}
-.t-opt{width:30px;height:27px;border-radius:15px;display:flex;align-items:center;justify-content:center;font-size:.76rem;transition:.2s;color:var(--text2);cursor:pointer;}
-.t-opt.on{background:var(--card);color:var(--text);box-shadow:var(--shadow2);}
-.lang-opt{width:36px;height:27px;border-radius:15px;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:800;transition:.2s;color:var(--text2);cursor:pointer;}
-.lang-opt.on{background:var(--card);color:var(--text);box-shadow:var(--shadow2);}
-.u-av{width:37px;height:37px;border-radius:50%;color:#000;background:linear-gradient(135deg,var(--p),var(--y));display:flex;align-items:center;justify-content:center;font-weight:900;font-size:.88rem;cursor:pointer;}
 .content{flex:1;overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:18px;}
 .animal-header{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px 22px;animation:fadeUp .4s ease both;display:flex;align-items:center;gap:16px;}
-@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
-.ah-icon{width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,var(--pu,#8b5cf6),var(--b));display:flex;align-items:center;justify-content:center;font-size:1.6rem;flex-shrink:0;}
+.ah-icon{width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,#8b5cf6,var(--b));display:flex;align-items:center;justify-content:center;font-size:1.6rem;flex-shrink:0;}
 .ah-name{font-family:'Bebas Neue';font-size:1.4rem;letter-spacing:1px;}
 .ah-sub{font-size:.8rem;color:var(--text2);font-weight:600;margin-top:2px;}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
-.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px;animation:fadeUp .5s ease both;}
-.ch{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;}
-.ct{font-family:'Bebas Neue';font-size:1rem;letter-spacing:1.2px;display:flex;align-items:center;gap:8px;}
-.ct i{color:var(--p);}
+.ct i{color:var(--g);}
 .sub-form{background:var(--bg3);border-radius:10px;padding:16px;margin-bottom:18px;}
 .sub-title{font-size:.78rem;font-weight:800;color:var(--text2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:6px;}
 .sub-title i{color:var(--p);}
-.fg{margin-bottom:12px;}
-.fg label{display:block;font-size:.7rem;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--text2);margin-bottom:5px;}
-.fi{width:100%;background:var(--bg2);border:1.5px solid var(--border);border-radius:8px;padding:8px 11px;color:var(--text);font-size:.83rem;font-weight:500;transition:.2s;outline:none;font-family:'Plus Jakarta Sans',sans-serif;}
-.fi:focus{border-color:var(--p);box-shadow:0 0 0 3px var(--pl);}
 textarea.fi{resize:vertical;min-height:60px;}
-.btn{padding:8px 14px;border-radius:8px;font-family:'Plus Jakarta Sans';font-weight:700;font-size:.78rem;cursor:pointer;border:none;transition:.15s;display:inline-flex;align-items:center;gap:6px;}
-.btn-g{background:var(--g);color:#fff;} .btn-g:hover{background:#0da271;}
-.btn-b{background:var(--b);color:#fff;} .btn-b:hover{background:#2563eb;}
-.btn-gh{background:var(--bg3);color:var(--text);border:1px solid var(--border);} .btn-gh:hover{background:var(--border);}
-.alert{padding:10px 14px;border-radius:9px;margin-bottom:14px;display:flex;align-items:center;gap:8px;font-size:.82rem;font-weight:600;}
-.alert-success{background:var(--gl);color:var(--g);}
-.alert-error{background:var(--rl);color:var(--r);}
-table{width:100%;border-collapse:collapse;}
-th{text-align:left;padding:8px 12px;font-size:.64rem;font-weight:800;letter-spacing:1px;color:var(--text2);text-transform:uppercase;border-bottom:1px solid var(--border);}
-td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:.81rem;font-weight:500;}
-tr:last-child td{border-bottom:none;}
-tr:hover td{background:var(--glass);}
-.empty{text-align:center;padding:20px;color:var(--text2);font-size:.8rem;}
 @media(max-width:900px){.row2{grid-template-columns:1fr;}}
-@media(max-width:600px){.sbar{display:none;}}
 </style>
 </head>
 <body>
-<aside class="sbar" id="sbar">
-  <div class="sbar-logo"><div class="sl-icon">🐾</div><div class="sl-txt"><h1>PetAdopt</h1><span data-i18n="shelter_sys">Shelter System</span></div></div>
-  <button class="sbar-toggle" onclick="toggleSbar()"><i class="fas fa-chevron-left"></i></button>
-  <div class="sbar-user"><div class="su-av"><?= $user_initial ?></div><div class="su-info"><div class="su-name"><?= $user_fullname ?></div><div class="su-role"><?= $user_role ?></div></div></div>
-  <nav class="sbar-nav">
-    <div class="s-sec" data-i18n="overview">Overview</div>
-    <a href="dashboard.php" class="ni"><i class="fas fa-chart-pie"></i><span class="nl" data-i18n="dashboard">Dashboard</span></a>
-    <div class="s-sec" data-i18n="animals_sec">Animals</div>
-    <a href="view_animals.php" class="ni on"><i class="fas fa-paw"></i><span class="nl" data-i18n="animals">Animals</span></a>
-    <a href="add_animal.php" class="ni"><i class="fas fa-plus"></i><span class="nl" data-i18n="add_animal">Add Animal</span></a>
-    <div class="s-sec" data-i18n="people_sec">People</div>
-    <a href="view_adopters.php" class="ni"><i class="fas fa-heart"></i><span class="nl" data-i18n="adopters">Adopters</span></a>
-    <a href="register_adopter.php" class="ni"><i class="fas fa-user-plus"></i><span class="nl" data-i18n="add_adopter">Add Adopter</span></a>
-    <div class="s-sec" data-i18n="system_sec">System</div>
-    <a href="reports.php" class="ni"><i class="fas fa-chart-line"></i><span class="nl" data-i18n="reports">Reports</span></a>
-    <?php if($_SESSION['role']==='admin'): ?><a href="view_users.php" class="ni"><i class="fas fa-users-gear" style="color:var(--y)"></i><span class="nl" data-i18n="admin_ctrl">Admin Controls</span></a><?php endif; ?>
-  </nav>
-  <div class="sbar-bottom"><a href="logout.php" class="ni"><i class="fas fa-right-from-bracket" style="color:var(--r)"></i><span class="nl" style="color:var(--r)" data-i18n="sign_out">Sign Out</span></a></div>
-</aside>
+
+<?php require_once 'includes/sidebar.php'; ?>
 
 <div class="main">
-  <header class="topbar">
-    <span class="tb-clock" id="clock">00:00</span>
-    <span class="topbar-title" data-i18n="health_profile">Health Profile</span>
-    <div class="tb-right">
-      <div class="lang-sw"><div class="lang-opt on" id="langEn" onclick="setLanguage('en')">EN</div><div class="lang-opt" id="langKu" onclick="setLanguage('ku')">KU</div></div>
-      <div class="theme-sw"><div class="t-opt on" id="tDark" onclick="setTheme('dark')"><i class="fas fa-moon"></i></div><div class="t-opt" id="tLight" onclick="setTheme('light')"><i class="fas fa-sun"></i></div></div>
-      <button class="tb-btn" onclick="window.location.reload()"><i class="fas fa-rotate"></i></button>
-      <div class="u-av"><?= $user_initial ?></div>
-    </div>
-  </header>
+  <?php
+    $page_title_key     = 'health_profile';
+    $page_title_default = 'Health Profile';
+    require_once 'includes/header.php';
+  ?>
+
   <div class="content">
     <div class="animal-header">
       <div class="ah-icon">🏥</div>
@@ -188,10 +97,8 @@ tr:hover td{background:var(--glass);}
       </div>
     </div>
 
-    <?php if($message==='med_ok'||$message==='vac_ok'): ?>
-    <div class="alert alert-success"><i class="fas fa-check-circle"></i><span data-i18n="record_ok">Record added successfully!</span></div>
-    <?php elseif($message==='error'): ?>
-    <div class="alert alert-error"><i class="fas fa-circle-exclamation"></i><span data-i18n="error_msg">An error occurred. Please try again.</span></div>
+    <?php if ($message==='med_ok'||$message==='vac_ok'): ?><div class="alert alert-success"><i class="fas fa-check-circle"></i><span data-i18n="record_ok">Record added successfully!</span></div>
+    <?php elseif ($message==='error'): ?><div class="alert alert-error"><i class="fas fa-circle-exclamation"></i><span data-i18n="error_msg">An error occurred.</span></div>
     <?php endif; ?>
 
     <div class="row2">
@@ -200,7 +107,7 @@ tr:hover td{background:var(--glass);}
         <div class="ch"><div class="ct"><i class="fas fa-notes-medical"></i><span data-i18n="medical_records">Medical Records</span></div></div>
         <div class="sub-form">
           <div class="sub-title"><i class="fas fa-plus"></i><span data-i18n="new_med_visit">+ New Medical Visit</span></div>
-          <form action="animal_health.php?id=<?= $animal_id ?>" method="POST">
+          <form action="animal_health.php?id=<?= $animal_id ?>" method="POST" data-form="medical">
             <input type="hidden" name="form_action" value="add_medical">
             <div class="fg"><label data-i18n="visit_type">Visit Type</label><input type="text" name="visit_type" class="fi" placeholder="e.g., Checkup, Surgery" required></div>
             <div class="fg"><label data-i18n="diagnoses">Diagnoses</label><textarea name="diagnoses" class="fi" rows="2"></textarea></div>
@@ -211,8 +118,8 @@ tr:hover td{background:var(--glass);}
         </div>
         <table>
           <thead><tr><th data-i18n="date">Date</th><th data-i18n="type_treatment">Type / Treatment</th><th data-i18n="vet">Vet</th></tr></thead>
-          <tbody>
-            <?php if(count($medical_records)>0): foreach($medical_records as $med): ?>
+          <tbody id="medBody">
+            <?php if (count($medical_records)>0): foreach ($medical_records as $med): ?>
             <tr>
               <td style="color:var(--text2);white-space:nowrap"><?= date('Y-m-d', strtotime($med['created_at'])) ?></td>
               <td><strong><?= htmlspecialchars($med['visit_type']) ?></strong><br><span style="color:var(--text2);font-size:.75rem">Dx: <?= htmlspecialchars($med['diagnoses']) ?></span><br><span style="color:var(--text2);font-size:.75rem">Tx: <?= htmlspecialchars($med['treatment']) ?></span></td>
@@ -230,13 +137,13 @@ tr:hover td{background:var(--glass);}
         <div class="ch"><div class="ct"><i class="fas fa-syringe" style="color:var(--y)"></i><span data-i18n="vaccination_history">Vaccination History</span></div></div>
         <div class="sub-form">
           <div class="sub-title"><i class="fas fa-plus"></i><span data-i18n="new_vaccination">+ New Vaccination</span></div>
-          <form action="animal_health.php?id=<?= $animal_id ?>" method="POST">
+          <form action="animal_health.php?id=<?= $animal_id ?>" method="POST" data-form="vaccine">
             <input type="hidden" name="form_action" value="add_vaccine">
             <div class="fg">
               <label data-i18n="vaccine_type">Vaccine Type</label>
               <select name="vtype_id" class="fi" required>
                 <option value="" data-i18n="select_vaccine">-- Select Vaccine --</option>
-                <?php foreach($vaccine_types as $vt): ?><option value="<?= $vt['vtype_id'] ?>"><?= htmlspecialchars($vt['vaccine_name']) ?></option><?php endforeach; ?>
+                <?php foreach ($vaccine_types as $vt): ?><option value="<?= $vt['vtype_id'] ?>"><?= htmlspecialchars($vt['vaccine_name']) ?></option><?php endforeach; ?>
               </select>
             </div>
             <div class="fg"><label data-i18n="date_given">Date Administered</label><input type="date" name="date" class="fi" value="<?= date('Y-m-d') ?>" required></div>
@@ -246,8 +153,8 @@ tr:hover td{background:var(--glass);}
         </div>
         <table>
           <thead><tr><th data-i18n="vaccine">Vaccine</th><th data-i18n="date_given">Date Given</th><th data-i18n="next_due">Next Due</th></tr></thead>
-          <tbody>
-            <?php if(count($vaccinations)>0): foreach($vaccinations as $vac): ?>
+          <tbody id="vacBody">
+            <?php if (count($vaccinations)>0): foreach ($vaccinations as $vac): ?>
             <tr>
               <td><strong><?= htmlspecialchars($vac['vaccine_name']) ?></strong></td>
               <td><?= htmlspecialchars($vac['date']) ?></td>
@@ -264,14 +171,79 @@ tr:hover td{background:var(--glass);}
 </div>
 
 <script>
-const tr={en:{shelter_sys:"Shelter System",overview:"Overview",animals_sec:"Animals",people_sec:"People",system_sec:"System",dashboard:"Dashboard",animals:"Animals",add_animal:"Add Animal",adopters:"Adopters",add_adopter:"Add Adopter",reports:"Reports",admin_ctrl:"Admin Controls",sign_out:"Sign Out",health_profile:"Health Profile",back_animals:"Back to Animals",record_ok:"Record added successfully!",error_msg:"An error occurred.",medical_records:"Medical Records",new_med_visit:"+ New Medical Visit",visit_type:"Visit Type",diagnoses:"Diagnoses",treatment:"Treatment",vet_name:"Vet Name",save_record:"Save Record",date:"Date",type_treatment:"Type / Treatment",vet:"Vet",no_med_records:"No medical records found.",vaccination_history:"Vaccination History",new_vaccination:"+ New Vaccination",vaccine_type:"Vaccine Type",select_vaccine:"-- Select Vaccine --",date_given:"Date Administered",next_due:"Next Due Date",save_vacc:"Save Vaccination",vaccine:"Vaccine",no_vaccinations:"No vaccinations recorded."},ku:{shelter_sys:"سیستەمی پەناگا",overview:"پوختە",animals_sec:"ئاژەڵەکان",people_sec:"کەسەکان",system_sec:"سیستەم",dashboard:"داشبۆرد",animals:"ئاژەڵەکان",add_animal:"زیادکردنی ئاژەڵ",adopters:"خاوەن نوێکان",add_adopter:"زیادکردنی وەرگر",reports:"ڕاپۆرتەکان",admin_ctrl:"بەڕێوەبردن",sign_out:"دەرچوون",health_profile:"پرۆفایلی تەندروستی",back_animals:"گەڕانەوە بۆ ئاژەڵەکان",record_ok:"تۆمار بە سەرکەوتوویی زیادکرا!",error_msg:"هەڵەیەک ڕوویدا.",medical_records:"تۆمارە پزیشکیەکان",new_med_visit:"+ سەردانی پزیشکی نوێ",visit_type:"جۆری سەردان",diagnoses:"تەشخیس",treatment:"چارەسەر",vet_name:"ناوی پزیشک",save_record:"پاراستنی تۆمار",date:"بەروار",type_treatment:"جۆر / چارەسەر",vet:"پزیشک",no_med_records:"هیچ تۆماری پزیشکی نەدۆزرایەوە.",vaccination_history:"مێژووی دەرمانکردن",new_vaccination:"+ دەرمانکردنی نوێ",vaccine_type:"جۆری دەرمان",select_vaccine:"-- جۆری دەرمان هەڵبژێرە --",date_given:"بەرواری دراو",next_due:"بەرواری داهاتوو",save_vacc:"پاراستنی دەرمانکردن",vaccine:"دەرمان",no_vaccinations:"هیچ دەرمانکردنێک تۆمارنەکراوە."}};
-let lang=localStorage.getItem('lang')||'en',theme=localStorage.getItem('theme')||'dark';
-function T(k){return(tr[lang]||{})[k]||tr.en[k]||k;}
-function setLanguage(l){lang=l;localStorage.setItem('lang',l);const isKu=l==='ku';document.documentElement.lang=l;document.documentElement.dir=isKu?'rtl':'ltr';document.getElementById('langEn').classList.toggle('on',l==='en');document.getElementById('langKu').classList.toggle('on',l==='ku');document.querySelectorAll('[data-i18n]').forEach(el=>{const k=el.getAttribute('data-i18n');if(T(k))el.textContent=T(k);});}
-function setTheme(t){theme=t;localStorage.setItem('theme',t);document.documentElement.setAttribute('data-theme',t);document.getElementById('tDark').classList.toggle('on',t==='dark');document.getElementById('tLight').classList.toggle('on',t==='light');}
-function toggleSbar(){document.getElementById('sbar').classList.toggle('mini');}
-function tick(){const n=new Date();document.getElementById('clock').textContent=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');}
-tick();setInterval(tick,10000);setTheme(theme);setLanguage(lang);
+const trPage = {
+  en:{health_profile:"Health Profile",back_animals:"Back to Animals",record_ok:"Record added successfully!",error_msg:"An error occurred.",medical_records:"Medical Records",new_med_visit:"+ New Medical Visit",visit_type:"Visit Type",diagnoses:"Diagnoses",treatment:"Treatment",vet_name:"Vet Name",save_record:"Save Record",date:"Date",type_treatment:"Type / Treatment",vet:"Vet",no_med_records:"No medical records found.",vaccination_history:"Vaccination History",new_vaccination:"+ New Vaccination",vaccine_type:"Vaccine Type",select_vaccine:"-- Select Vaccine --",date_given:"Date Administered",next_due:"Next Due Date",save_vacc:"Save Vaccination",vaccine:"Vaccine",no_vaccinations:"No vaccinations recorded."},
+  ku:{health_profile:"پرۆفایلی تەندروستی",back_animals:"گەڕانەوە بۆ ئاژەڵەکان",record_ok:"تۆمار بە سەرکەوتوویی زیادکرا!",error_msg:"هەڵەیەک ڕوویدا.",medical_records:"تۆمارە پزیشکیەکان",new_med_visit:"+ سەردانی پزیشکی نوێ",visit_type:"جۆری سەردان",diagnoses:"تەشخیس",treatment:"چارەسەر",vet_name:"ناوی پزیشک",save_record:"پاراستنی تۆمار",date:"بەروار",type_treatment:"جۆر / چارەسەر",vet:"پزیشک",no_med_records:"هیچ تۆماری پزیشکی نەدۆزرایەوە.",vaccination_history:"مێژووی دەرمانکردن",new_vaccination:"+ دەرمانکردنی نوێ",vaccine_type:"جۆری دەرمان",select_vaccine:"-- جۆری دەرمان هەڵبژێرە --",date_given:"بەرواری دراو",next_due:"بەرواری داهاتوو",save_vacc:"پاراستنی دەرمانکردن",vaccine:"دەرمان",no_vaccinations:"هیچ دەرمانکردنێک تۆمارنەکراوە."}
+};
+</script>
+<?php require_once 'includes/layout_js.php'; ?>
+<script src="includes/realtime.js"></script>
+<script>
+/* ── AJAX Health Forms ───────────────────────────────────────
+   Forms submit to api/health.php via AJAX; records update without reload.
+──────────────────────────────────────────────── */
+const ANIMAL_ID = <?= $animal_id ?>;
+
+async function refreshHealth() {
+  try {
+    const res  = await fetch(`api/health.php?animal_id=${ANIMAL_ID}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    const medBody = document.getElementById('medBody');
+    const vacBody = document.getElementById('vacBody');
+    if (medBody) medBody.innerHTML = data.med_html;
+    if (vacBody) vacBody.innerHTML = data.vac_html;
+  } catch(e) {}
+}
+
+// Medical form AJAX
+const medForm = document.querySelector('form[data-form="medical"]');
+if (medForm) {
+  medForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = medForm.querySelector('[type=submit]');
+    btn.disabled = true; btn.style.opacity = '.6';
+    try {
+      const res  = await fetch('api/health_save.php', { method:'POST', body: new FormData(medForm) });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      medForm.reset();
+      showToast('Medical record saved!', 'success');
+      refreshHealth();
+    } catch(err) {
+      showToast(err.message || 'Failed to save', 'error');
+    }
+    btn.disabled = false; btn.style.opacity = '';
+  });
+}
+
+// Vaccine form AJAX
+const vacForm = document.querySelector('form[data-form="vaccine"]');
+if (vacForm) {
+  vacForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = vacForm.querySelector('[type=submit]');
+    btn.disabled = true; btn.style.opacity = '.6';
+    try {
+      const res  = await fetch('api/health_save.php', { method:'POST', body: new FormData(vacForm) });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      vacForm.reset();
+      // Re-set today's date
+      const dateInput = vacForm.querySelector('[name=date]');
+      if (dateInput) dateInput.value = new Date().toISOString().slice(0,10);
+      showToast('Vaccination saved!', 'success');
+      refreshHealth();
+    } catch(err) {
+      showToast(err.message || 'Failed to save', 'error');
+    }
+    btn.disabled = false; btn.style.opacity = '';
+  });
+}
+
+// Initial load + 15s auto-refresh
+refreshHealth();
+startAutoRefresh(refreshHealth, 15000);
 </script>
 </body>
 </html>
